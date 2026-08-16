@@ -1,9 +1,15 @@
 # unmarkai-skills
 
+[![Website](https://img.shields.io/badge/website-unmarkai.net-7f5bf5)](https://unmarkai.net/video-text-removal-api/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-38d995.svg)](LICENSE)
+[![MCP](https://img.shields.io/badge/MCP-streamable_HTTP-39b9ed)](https://api.unmarkai.net/mcp)
+
 Agent skills for [UnmarkAI](https://unmarkai.net) — let Claude, Codex,
 Cursor, opencode and any MCP-capable agent **remove hardcoded text
 (subtitles, captions, on-screen titles) from videos you own** with a single
 `UNMARKAI_API_KEY` and no other setup.
+
+Product page: **[Video Text Removal API & MCP Server](https://unmarkai.net/video-text-removal-api/)**.
 
 Two ways to connect, same engine underneath:
 
