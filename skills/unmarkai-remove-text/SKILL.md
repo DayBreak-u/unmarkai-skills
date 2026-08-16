@@ -50,7 +50,7 @@ ownership or provide their own footage.
    video, 8–16px margin around the text); otherwise `mode: "all_area"`. Pass a
    stable `idempotency_key` you generated (e.g. a hash of file + rect) so
    retries never create duplicate jobs.
-6. **Wait for the result** — call `get_job` with `wait_seconds: 120` in a loop
+6. **Wait for the result** — call `get_job` with `wait_seconds: 60` in a loop
    until `status` is `succeeded`, `failed`, or `canceled`. If a call returns
    while still in progress, simply call again.
 7. **Download** — when succeeded, `curl -o` the `result.url` immediately; the

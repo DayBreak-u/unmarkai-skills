@@ -25,7 +25,7 @@ Flow (always in this order):
 5. remove_text(upload_id, mode, rect?, idempotency_key) — rect is absolute
    pixels of the original video with an 8–16px margin around the text; only
    with mode="sel_area" (≈half price). all_area takes no rect.
-6. get_job(job_id, wait_seconds=120) in a loop until status is succeeded,
+6. get_job(job_id, wait_seconds=60) in a loop until status is succeeded,
    failed, or canceled.
 7. curl-download result.url immediately — the signed link expires in 1 hour.
 
