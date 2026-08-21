@@ -34,6 +34,8 @@ curl -sS "$API/balance" -H "$AUTH" | jq .
 
 ## 3. Create an upload ticket
 
+For a local file, use the existing one-shot ticket flow:
+
 ```bash
 TICKET=$(curl -sS -X POST "$API/uploads" \
   -H "$AUTH" -H 'Content-Type: application/json' \
@@ -62,6 +64,36 @@ curl -sS -X PUT "$PUT_URL" \
 
 A `200`/`201` means the upload landed. A `412` means the one-shot ticket was
 already used — do NOT PUT again; go back to step 3 for a fresh ticket.
+
+### Alternative: import a direct HTTPS video URL
+
+Skip the ticket and PUT when the source is already a directly downloadable
+public HTTPS video. Signed query parameters are supported; web pages,
+YouTube/TikTok links, private-network hosts, unknown file sizes, and unsupported
+video MIME types are rejected.
+
+```bash
+SOURCE_URL='https://cdn.example.com/source.mp4?signature=xxx'
+URL_IDEMPOTENCY='url-import-001'
+
+URL_UPLOAD=$(curl -sS -X POST "$API/url-uploads" \
+  -H "$AUTH" -H 'Content-Type: application/json' \
+  -H "Idempotency-Key: $URL_IDEMPOTENCY" \
+  --data "$(jq -n --arg source_url "$SOURCE_URL" \
+    '{source_url: $source_url}')")
+
+UPLOAD_ID=$(jq -r .upload_id <<<"$URL_UPLOAD")
+until STATUS=$(curl -sS "$API/uploads/$UPLOAD_ID" -H "$AUTH" \
+  | tee /tmp/upload.json | jq -r .status) \
+  && [[ "$STATUS" == uploaded || "$STATUS" == failed || "$STATUS" == expired ]]; do
+  echo "upload status: $STATUS"; sleep 5
+done
+
+[[ "$STATUS" == uploaded ]] || { jq . /tmp/upload.json; exit 1; }
+```
+
+Only continue to job creation after the URL upload reaches `uploaded`. Reuse
+the same idempotency key only for an identical URL import request.
 
 ## 5. Create the job
 

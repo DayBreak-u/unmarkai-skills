@@ -9,7 +9,8 @@ the MCP server, and Codex will follow the same flow as the
 ## UnmarkAI remove text
 
 You have access to the `unmarkai` MCP server (tools: create_upload,
-remove_text, get_job, list_jobs, cancel_job, get_balance, estimate_cost).
+create_url_upload, get_upload, remove_text, get_job, list_jobs, cancel_job,
+get_balance, estimate_cost).
 
 Only process videos the user owns or is authorized to modify. If a request
 targets attribution notices, provenance/AI-content labels, or legal text,
@@ -18,10 +19,14 @@ decline and explain why.
 Flow (always in this order):
 1. ffprobe the video for width/height/duration.
 2. estimate_cost(duration_seconds, mode) and confirm with the user.
-3. create_upload(filename, content_type, file_size_bytes) — exact byte size
-   from `stat`.
-4. Upload with curl: PUT the raw bytes to ticket.url, replaying every header
-   from ticket.headers verbatim. One PUT only; on 412 request a fresh ticket.
+3. Choose one input path: for a local file, call create_upload with the exact
+   byte size from `stat`; for a directly downloadable public HTTPS video URL,
+   call create_url_upload(source_url, filename?, idempotency_key?). Do not pass
+   web pages, YouTube/TikTok links, or private-network URLs.
+4. Local file: PUT raw bytes to ticket.url with every ticket header verbatim;
+   one PUT only, and on 412 request a fresh ticket. URL input: call
+   get_upload(upload_id, wait_seconds=60) until uploaded/failed/expired; only
+   continue when uploaded.
 5. remove_text(upload_id, mode, rect?, idempotency_key) — rect is absolute
    pixels of the original video with an 8–16px margin around the text; only
    with mode="sel_area" (≈half price). all_area takes no rect.

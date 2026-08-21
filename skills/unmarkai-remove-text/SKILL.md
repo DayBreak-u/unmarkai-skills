@@ -28,23 +28,30 @@ ownership or provide their own footage.
 - The `unmarkai` MCP server is connected (remote HTTP:
   `https://api.unmarkai.net/mcp`), or `UNMARKAI_API_KEY` is set and you follow
   [references/curl-fallback.md](references/curl-fallback.md) instead.
-- `curl` and `jq` are available (file upload/download is always done with
-  curl — the remote MCP server cannot read local files).
+- `curl` and `jq` are available (local file upload and result download are
+  done with curl — the remote MCP server cannot read local files).
 - `ffprobe` is available to read video dimensions and duration
   (see [references/rect-and-dimensions.md](references/rect-and-dimensions.md)).
 
 ## Standard flow
 
-1. **Probe the video** — get width, height, and duration with ffprobe.
+1. **Probe the video** — get width, height, and duration with ffprobe. A
+   directly downloadable HTTPS video URL can be passed to ffprobe as input.
 2. **Estimate cost** — call `estimate_cost` with `duration_seconds` and the
    chosen `mode`. Confirm the estimate with the user before spending.
-3. **Create an upload ticket** — call `create_upload` with the bare filename,
-   the exact MIME type, and the exact byte size (`stat -f%z` on macOS,
-   `stat -c%s` on Linux).
-4. **Upload the file** — `curl -X PUT` the raw bytes to `ticket.url`, copying
+3. **Prepare the input** — choose exactly one path:
+   - Local file: call `create_upload` with the bare filename, exact MIME type,
+     and exact byte size (`stat -f%z` on macOS, `stat -c%s` on Linux).
+   - Direct HTTPS video URL: call `create_url_upload(source_url, filename?,
+     idempotency_key?)`. Signed query parameters are supported. Do not pass
+     YouTube/TikTok links or web pages; the URL must download the video file.
+4. **Finish the upload** — for a local file, `curl -X PUT` the raw bytes to
+   `ticket.url`, copying
    **every** header from `ticket.headers` verbatim (they include
    `content-type`, `content-length`, and `if-none-match`). A single PUT only —
-   retrying a used ticket returns 412; request a fresh ticket instead.
+   retrying a used ticket returns 412; request a fresh ticket instead. For a
+   URL input, call `get_upload(upload_id, wait_seconds: 60)` until status is
+   `uploaded`, `failed`, or `expired`; never create a job while importing.
 5. **Create the job** — call `remove_text` with the `upload_id`. For partial
    regions use `mode: "sel_area"` plus `rect` (absolute pixels of the ORIGINAL
    video, 8–16px margin around the text); otherwise `mode: "all_area"`. Pass a
@@ -74,12 +81,15 @@ ownership or provide their own footage.
 | `insufficient_balance` | Wallet empty | Tell the user to top up in the dashboard, then retry |
 | Job `failed` with `error.code` | Processing error | Report `error.message`; a failed job is not charged |
 | PUT upload returns 412 | Ticket already used | Call `create_upload` again for a fresh ticket |
+| URL upload `failed` | Source could not be imported | Report `error.message`; verify it is a public HTTPS direct video URL with stable size/MIME, then use a new idempotency key after fixing the URL |
 | `INVALID_RECT` / rect errors | Bad coordinates | Re-check dimensions with ffprobe; rect must satisfy `0 ≤ x1 < x2 ≤ width`, `0 ≤ y1 < y2 ≤ height` |
 
 ## Do not
 
 - Never echo the API key, print it, or paste it into command output.
 - Never retry a used upload ticket; always mint a new one.
+- Never pass a web page or private-network URL to `create_url_upload`.
+- Never call `remove_text` for a URL input until `get_upload` is `uploaded`.
 - Never poll faster than once per 2 seconds.
 - Never pass `rect` with `all_area`.
 - Never download `result.url` lazily — it expires in 1 hour.

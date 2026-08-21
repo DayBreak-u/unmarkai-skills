@@ -21,7 +21,7 @@ Two ways to connect, same engine underneath:
 
 | | |
 |---|---|
-| Tools | `create_upload`, `remove_text`, `get_job`, `list_jobs`, `cancel_job`, `get_balance`, `estimate_cost` |
+| Tools | `create_upload`, `create_url_upload`, `get_upload`, `remove_text`, `get_job`, `list_jobs`, `cancel_job`, `get_balance`, `estimate_cost` |
 | Pricing | Per second, rounded up, 1s minimum — `all_area` $0.010/s, `sel_area` $0.005/s (partial region, ~half price) |
 | Limits | Max 2 GiB / 60 min per video; mp4 / mov / avi / mkv / webm / mpeg |
 | Result | Signed download link, valid 1 hour (file kept 7 days) |
@@ -169,8 +169,9 @@ Once connected, just ask:
 > the cost first, use the cheapest mode that covers the subtitle area, and
 > download the clean version next to the original.
 
-The agent will probe the video, quote the estimate, upload with a one-shot
-ticket, create the job, wait for completion, and download the result.
+The agent will probe the video, quote the estimate, import a direct HTTPS URL
+or upload a local file with a one-shot ticket, create the job, wait for
+completion, and download the result.
 
 ## Verify the connection
 
@@ -181,7 +182,7 @@ curl -sS -X POST https://api.unmarkai.net/mcp \
   --data '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
-A JSON-RPC result listing the seven tools means everything works. `401
+A JSON-RPC result listing the nine tools means everything works. `401
 unauthorized` means the key is wrong; `404` means you hit the wrong URL.
 
 ## Troubleshooting
@@ -194,6 +195,7 @@ unauthorized` means the key is wrong; `404` means you hit the wrong URL.
 | `insufficient_balance` | Top up the API wallet in the dashboard |
 | Client can't connect to remote MCP | Check the client's syntax above for the exact config shape; worst case use the curl fallback |
 | Upload PUT returns 412 | Upload tickets are one-shot — request a new one |
+| URL import fails | Use a public HTTPS URL that directly returns a supported video with a stable Content-Length; page links are not accepted |
 
 ## Security notes
 
