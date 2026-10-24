@@ -215,3 +215,11 @@ such markers from content you don't control may be unlawful — don't.
 ## License
 
 [MIT](LICENSE) © DayBreak-u
+
+
+## Public API example repositories
+
+- [Video text removal & subtitle removal API](https://github.com/DayBreak-u/unmarkai-video-text-removal-api) — real cleanup comparisons, Python/cURL uploads, region modes, polling and downloads. [API guide](https://unmarkai.net/video-text-removal-api/).
+- [Video translation & AI dubbing API](https://github.com/DayBreak-u/unmarkai-video-translation-api) — REST examples for translation, two-stage text review, video and SRT downloads. [API guide](https://unmarkai.net/video-translation-api/).
+
+The Skill and MCP tools in this repository cover text cleanup. Use the translation REST examples for the next localization stage; cleanup and translation are separate, separately billed jobs.
