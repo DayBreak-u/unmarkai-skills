@@ -1,17 +1,25 @@
 # unmarkai-skills
 
+English | [简体中文](README.zh-CN.md)
+
 [![Website](https://img.shields.io/badge/website-unmarkai.net-7f5bf5)](https://unmarkai.net/video-text-removal-api/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-38d995.svg)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-streamable_HTTP-39b9ed)](https://api.unmarkai.net/mcp)
 
 Agent skills for [UnmarkAI](https://unmarkai.net) — let Claude, Codex,
 Cursor, opencode and any MCP-capable agent **remove hardcoded text
-(subtitles, captions, on-screen titles) from videos you own** with a single
-`UNMARKAI_API_KEY` and no other setup.
+(subtitles, captions, on-screen titles) from videos you own** and **enhance authorized videos to 1080p, 2K or 4K** through the regional REST API.
+Use `UNMARKAI_API_KEY` for your chosen region.
 
 Product page: **[Video Text Removal API & MCP Server](https://unmarkai.net/video-text-removal-api/)**.
 
-Two ways to connect, same engine underneath:
+Text cleanup supports MCP and REST. Video HD (`video_upscale`) is available
+on both the overseas and China REST APIs; there is no documented native HD
+MCP tool. Translation is a separate service.
+See [verified API contract and regional limits](skills/unmarkai-remove-text/references/api-contract.md) and
+the [HD skill](skills/unmarkai-video-upscale/SKILL.md).
+
+Two ways to connect for cleanup:
 
 - **Remote MCP server** (recommended): `https://api.unmarkai.net/mcp`
 - **Plain REST** (no MCP support needed): full curl walkthrough in
@@ -22,15 +30,16 @@ Two ways to connect, same engine underneath:
 | | |
 |---|---|
 | Tools | `create_upload`, `create_url_upload`, `get_upload`, `remove_text`, `get_job`, `list_jobs`, `cancel_job`, `get_balance`, `estimate_cost` |
-| Pricing | Per second, rounded up, 1s minimum — `all_area` $0.010/s, `sel_area` $0.005/s (partial region, ~half price) |
+| Pricing | Use current regional balance/estimate; China: 15s minimum, CNY 0.040/s full/multi-region, 0.020/s single-region before discount |
 | Limits | Max 2 GiB / 60 min per video; mp4 / mov / avi / mkv / webm / mpeg |
 | Result | Signed download link, valid 1 hour (file kept 7 days) |
-| Rate limits | 50 write / 120 read calls per minute |
+| Concurrency / rate limits | Read balance `concurrency`; honor 429 and Retry-After |
 
 ## Setup: get a key
 
-1. Sign in at [unmarkai.net](https://unmarkai.net) and open the
-   **API Console** (Dashboard → API).
+1. Open the [China API Console](https://unmarkai.cn/developers/) or the
+   overseas [UnmarkAI](https://unmarkai.net) API Console (Dashboard → API).
+   Regional keys and wallets are independent.
 2. Create an API key with scopes `jobs:read`, `jobs:write`, `balance:read`.
 3. Top up the API wallet (pay-as-you-go).
 4. Export it:
@@ -53,13 +62,12 @@ rect margins, error triage):
 
 ```bash
 mkdir -p ~/.claude/skills && \
-  cp -r skills/unmarkai-remove-text ~/.claude/skills/
+  cp -R skills/unmarkai-remove-text skills/unmarkai-video-upscale ~/.claude/skills/
 ```
 
 ### Claude Desktop
 
-Claude Desktop does not speak to remote HTTP MCP servers natively — bridge it
-with [`mcp-remote`](https://github.com/geelen/mcp-remote) in
+For Claude Desktop configurations that use a local MCP bridge, use [`mcp-remote`](https://github.com/geelen/mcp-remote) in
 `claude_desktop_config.json`:
 
 ```json
@@ -113,22 +121,28 @@ streamable-HTTP type (see the Windsurf docs for your version):
 
 ### Codex CLI
 
-Streamable HTTP is still experimental in Codex — enable the RMCP client and
-declare the server in `~/.codex/config.toml`:
+Codex CLI supports native skills. From this checkout, copy both skills to your
+project's `.agents/skills/` (or `~/.agents/skills/` for user-wide use):
 
-```toml
-experimental_use_rmcp_client = true
-
-[mcp_servers.unmarkai]
-url = "https://api.unmarkai.net/mcp"
-bearer_token = "uma_live_xxxxxxxxxxxx"
+```bash
+mkdir -p .agents/skills
+cp -R skills/unmarkai-remove-text skills/unmarkai-video-upscale .agents/skills/
 ```
 
-Codex has no native skills system; put the flow instructions in your
-`AGENTS.md` instead — see
-[codex/AGENTS-snippet.md](codex/AGENTS-snippet.md). If the experimental HTTP
-client misbehaves in your Codex version, fall back to the
-[curl flow](skills/unmarkai-remove-text/references/curl-fallback.md).
+Invoke `$unmarkai-remove-text` or `$unmarkai-video-upscale`. For optional cleanup
+MCP, configure `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.unmarkai]
+url = "https://unmarkai.cn/api/mcp"
+bearer_token_env_var = "UNMARKAI_API_KEY"
+```
+
+Use `https://api.unmarkai.net/mcp` with an overseas key. No experimental flag is
+needed. The HD skill uses REST even when MCP is connected. Optional project
+instructions: [codex/AGENTS-snippet.md](codex/AGENTS-snippet.md).
+Sources: [Codex skills](https://developers.openai.com/codex/skills),
+[Codex MCP](https://developers.openai.com/codex/mcp).
 
 ### opencode
 
@@ -194,7 +208,7 @@ unauthorized` means the key is wrong; `404` means you hit the wrong URL.
 | `rate_limit_exceeded` | Slow down — agents should poll at most once per 2s |
 | `insufficient_balance` | Top up the API wallet in the dashboard |
 | Client can't connect to remote MCP | Check the client's syntax above for the exact config shape; worst case use the curl fallback |
-| Upload PUT returns 412 | Upload tickets are one-shot — request a new one |
+| Upload PUT returns 409/412 | Inspect upload status; obtain a fresh ticket if needed |
 | URL import fails | Use a public HTTPS URL that directly returns a supported video with a stable Content-Length; page links are not accepted |
 
 ## Security notes
@@ -203,7 +217,7 @@ unauthorized` means the key is wrong; `404` means you hit the wrong URL.
 - Prefer env-var expansion (`$UNMARKAI_API_KEY`) over pasting literals into
   config files where the client supports it.
 - Rotate the key in the API Console if it leaks; revoke immediately if shared
-  in a repo (`git rm --cached` + rewrite history).
+  in a repo; follow your repository’s incident process to remove exposed values.
 
 ## Responsible use
 
@@ -220,6 +234,46 @@ such markers from content you don't control may be unlawful — don't.
 ## Public API example repositories
 
 - [Video text removal & subtitle removal API](https://github.com/DayBreak-u/unmarkai-video-text-removal-api) — real cleanup comparisons, Python/cURL uploads, region modes, polling and downloads. [API guide](https://unmarkai.net/video-text-removal-api/).
-- [Video translation & AI dubbing API](https://github.com/DayBreak-u/unmarkai-video-translation-api) — REST examples for translation, two-stage text review, video and SRT downloads. [API guide](https://unmarkai.net/video-translation-api/).
+- [Video translation & AI dubbing API](https://github.com/DayBreak-u/unmarkai-video-translation-api) — REST examples for translation, video and SRT downloads. [API guide](https://unmarkai.net/video-translation-api/).
 
-The Skill and MCP tools in this repository cover text cleanup. Use the translation REST examples for the next localization stage; cleanup and translation are separate, separately billed jobs.
+The removal skill and published MCP tools cover text cleanup; the HD skill uses REST. Use the translation REST examples for the next localization stage; cleanup and translation are separate, separately billed jobs.
+
+## Video HD (REST)
+
+Install [unmarkai-video-upscale](skills/unmarkai-video-upscale/SKILL.md), then ask:
+
+> Enhance my own source.mp4 to 4K. Estimate cost in this region's API wallet
+> currency first, preserve frame rate and audio, and download the result.
+
+Follow the [complete curl workflow](skills/unmarkai-video-upscale/references/curl-fallback.md):
+probe → balance/local estimate → upload or HTTPS import → `POST /jobs` with
+`{"type":"video_upscale","input":{"upload_id":"upl_REPLACE"},"upscale":{"target":"4k"}}`
+→ poll → download `result.url`. Use `https://api.unmarkai.net/v1` with an
+overseas key, or `https://unmarkai.cn/api/v1` with a China key. Targets:
+`1080p`, `2k`, `4k`; the server determines FPS and doubles rates above 30 FPS.
+China standard prices are CNY 0.04/0.08/0.12 per second, minimum 15 seconds,
+then account discount. Overseas OpenAPI 1.4.0 bills USD as the active
+`all_area` base rate × 1/2/3 for 1080p/2k/4k, then the same FPS multiplier and
+discount, also with a 15-second minimum; read live `amounts.upscale_rates`
+instead of copying CNY list prices. The public overseas cancel text does not
+name `video_upscale`; do not assume a cancel window.
+See [contract notes](skills/unmarkai-remove-text/references/api-contract.md) for all input, output, size,
+resolution, retention, concurrency, billing and error details.
+
+Translation `output_resolution` only caps translated video output; it is not
+HD enhancement and does not forcibly upscale small sources.
+
+## Region selection and verification
+
+China REST: `https://unmarkai.cn/api/v1`; MCP: `https://unmarkai.cn/api/mcp`.
+Overseas REST: `https://api.unmarkai.net/v1`; MCP: `https://api.unmarkai.net/mcp`.
+The client examples above using `.net` are overseas configurations. Change both
+endpoint and key for China.
+Read `currency` and `amounts`; China uses CNY, not legacy USD fields. Overseas
+HD uses the USD wallet and the 1.4.0 rate formula, not China CNY list prices.
+
+Contract checked 2026-11-16: [overseas OpenAPI 1.4.0](https://unmarkai.net/openapi-v1.yaml),
+[China OpenAPI 1.3.0](https://unmarkai.cn/openapi-v1.yaml),
+[China developer docs](https://unmarkai.cn/developers/docs/).
+Run offline checks with Python 3 plus PyYAML/jsonschema:
+`python3 -m unittest discover -s tests -v`. No real uploads or paid jobs are needed.

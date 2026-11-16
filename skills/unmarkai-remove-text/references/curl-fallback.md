@@ -10,7 +10,8 @@ Only process videos you own or have explicit permission to modify.
 
 ```bash
 : "${UNMARKAI_API_KEY:?set UNMARKAI_API_KEY to your uma_live_* key}"
-API="https://api.unmarkai.net/v1"
+set -euo pipefail
+API="https://unmarkai.cn/api/v1" # overseas: https://api.unmarkai.net/v1
 AUTH="Authorization: Bearer $UNMARKAI_API_KEY"
 ```
 
@@ -23,13 +24,13 @@ ffprobe -v error -select_streams v:0 \
   -show_entries stream=width,height -show_entries format=duration \
   -of json "$VIDEO"
 
-SIZE=$(stat -f%z "$VIDEO")   # macOS; on Linux: stat -c%s "$VIDEO"
+SIZE=$(wc -c < "$VIDEO" | tr -d ' ')
 ```
 
 ## 2. (Optional) Check the wallet
 
 ```bash
-curl -sS "$API/balance" -H "$AUTH" | jq .
+curl --fail-with-body -sS "$API/balance" -H "$AUTH" | jq .
 ```
 
 ## 3. Create an upload ticket
@@ -37,7 +38,7 @@ curl -sS "$API/balance" -H "$AUTH" | jq .
 For a local file, use the existing one-shot ticket flow:
 
 ```bash
-TICKET=$(curl -sS -X POST "$API/uploads" \
+TICKET=$(curl --fail-with-body -sS -X POST "$API/uploads" \
   -H "$AUTH" -H 'Content-Type: application/json' \
   --data "{
     \"filename\": \"$(basename "$VIDEO")\",
@@ -55,15 +56,15 @@ every entry verbatim (`content-type`, `content-length`, `if-none-match`).
 ## 4. Upload the raw bytes (single PUT)
 
 ```bash
-curl -sS -X PUT "$PUT_URL" \
-  -H 'content-type: video/mp4' \
-  -H 'content-length: '"$SIZE" \
-  -H 'if-none-match: *' \
-  --data-binary "@$VIDEO" -o /dev/null -w '%{http_code}\n'
+UPLOAD_HEADERS=()
+while IFS= read -r header; do UPLOAD_HEADERS+=(-H "$header"); done \
+  < <(jq -r '.headers | to_entries[] | "\(.key): \(.value)"' <<<"$TICKET")
+curl --fail-with-body -sS -X PUT "$PUT_URL" \
+  "${UPLOAD_HEADERS[@]}" --data-binary "@$VIDEO"
 ```
 
-A `200`/`201` means the upload landed. A `412` means the one-shot ticket was
-already used — do NOT PUT again; go back to step 3 for a fresh ticket.
+A `200`/`201` means the upload landed. A `409`/`412` means the ticket cannot overwrite an object; inspect upload
+status, and obtain a fresh ticket if needed. Do not blindly PUT again.
 
 ### Alternative: import a direct HTTPS video URL
 
@@ -76,20 +77,21 @@ video MIME types are rejected.
 SOURCE_URL='https://cdn.example.com/source.mp4?signature=xxx'
 URL_IDEMPOTENCY='url-import-001'
 
-URL_UPLOAD=$(curl -sS -X POST "$API/url-uploads" \
+URL_UPLOAD=$(curl --fail-with-body -sS -X POST "$API/url-uploads" \
   -H "$AUTH" -H 'Content-Type: application/json' \
   -H "Idempotency-Key: $URL_IDEMPOTENCY" \
   --data "$(jq -n --arg source_url "$SOURCE_URL" \
     '{source_url: $source_url}')")
 
 UPLOAD_ID=$(jq -r .upload_id <<<"$URL_UPLOAD")
-until STATUS=$(curl -sS "$API/uploads/$UPLOAD_ID" -H "$AUTH" \
-  | tee /tmp/upload.json | jq -r .status) \
-  && [[ "$STATUS" == uploaded || "$STATUS" == failed || "$STATUS" == expired ]]; do
-  echo "upload status: $STATUS"; sleep 5
+STATUS=pending
+for ((i=0; i<360; i++)); do
+  UPLOAD=$(curl --fail-with-body -sS "$API/uploads/$UPLOAD_ID" -H "$AUTH")
+  STATUS=$(jq -er .status <<<"$UPLOAD")
+  case "$STATUS" in uploaded|failed|expired) break ;; esac
+  sleep 5
 done
-
-[[ "$STATUS" == uploaded ]] || { jq . /tmp/upload.json; exit 1; }
+[[ "$STATUS" == uploaded ]] || { echo "Not ready; retain $UPLOAD_ID"; exit 1; }
 ```
 
 Only continue to job creation after the URL upload reaches `uploaded`. Reuse
@@ -99,9 +101,9 @@ the same idempotency key only for an identical URL import request.
 
 ```bash
 # Unique per (file, settings) so retries never double-bill.
-IDEMPOTENCY="rt-$(shasum "$VIDEO" | cut -c1-16)"
+IDEMPOTENCY="replace-with-persisted-unique-business-request-id"
 
-JOB=$(curl -sS -X POST "$API/jobs" \
+JOB=$(curl --fail-with-body -sS -X POST "$API/jobs" \
   -H "$AUTH" -H 'Content-Type: application/json' \
   -H "Idempotency-Key: $IDEMPOTENCY" \
   --data '{
@@ -119,7 +121,7 @@ of the original video; add an 8–16px margin around the text):
 ```json
 {
   "type": "remove_text",
-  "input": { "upload_id": "upl_..." },
+  "input": { "upload_id": "upl_REPLACE" },
   "mode": "sel_area",
   "rect": { "x1": 40, "y1": 880, "x2": 1240, "y2": 1000 }
 }
@@ -128,18 +130,22 @@ of the original video; add an 8–16px margin around the text):
 ## 6. Poll until terminal
 
 ```bash
-until STATUS=$(curl -sS "$API/jobs/$JOB_ID" -H "$AUTH" | tee /tmp/job.json | jq -r .status) \
-  && [[ "$STATUS" == succeeded || "$STATUS" == failed || "$STATUS" == canceled ]]; do
-  echo "status: $STATUS"; sleep 5
+STATUS=queued
+for ((i=0; i<360; i++)); do
+  JOB=$(curl --fail-with-body -sS "$API/jobs/$JOB_ID" -H "$AUTH")
+  STATUS=$(jq -er .status <<<"$JOB")
+  case "$STATUS" in succeeded|failed|canceled) break ;; esac
+  sleep 5
 done
-cat /tmp/job.json | jq .
+jq '{id,status,error,currency,amounts}' <<<"$JOB"
+[[ "$STATUS" == succeeded ]] || { echo "Retain job ID: $JOB_ID"; exit 1; }
 ```
 
 ## 7. Download the result (link expires in 1 hour)
 
 ```bash
-curl -sS -o "clean-$(basename "$VIDEO")" \
-  "$(jq -r .result.url /tmp/job.json)"
+curl --fail-with-body -sS -o "clean-$(basename "$VIDEO")" \
+  "$(jq -er .result.url <<<"$JOB")"
 ```
 
 ## Error reference
@@ -152,6 +158,26 @@ Every non-2xx response is `{ "error": { "code", "message", "request_id" } }`.
 | 403 | `insufficient_scope` | Recreate the key with jobs:read, jobs:write, balance:read |
 | 409 | `idempotency_conflict` | Same Idempotency-Key reused with a different body — use a new key |
 | 413 | `request_too_large` | Body over 64 KiB (metadata too big) |
-| 422 | `invalid_request` / `INVALID_RECT` | Check body fields; re-check rect vs actual dimensions |
-| 429 | `rate_limit_exceeded` | Back off ~5s and retry (write 50/min, read 120/min) |
+| 422 | `invalid_request` / `invalid_media` | Check body fields; re-check rect vs actual dimensions |
+| 429 | `rate_limit_exceeded` | Honor Retry-After; use bounded backoff with jitter |
 | 402 | `insufficient_balance` | Top up the API wallet in the dashboard |
+
+## Current contract additions
+
+Read [contract notes](api-contract.md) for regional pricing,
+15-second domestic minimum, upload quotas, errors and concurrency. Estimate removal
+locally from current balance rates when using REST; there is no REST estimate endpoint.
+`sel_area` covers at most half the frame. For REST `multi_area`, use a nonempty
+rectangle array as `rect`; billing uses `all_area` rates.
+
+Cancel only during validating/queued:
+
+```bash
+curl --fail-with-body -sS -X POST "$API/jobs/$JOB_ID/cancel" -H "$AUTH" \
+  -H 'Content-Type: application/json' --data '{}'
+```
+
+On 409 `job_not_cancelable`, inspect the current job instead of resubmitting.
+Read `currency` and `amounts`; China uses CNY and a separate wallet/key.
+Use bounded polling and preserve IDs on timeout. Download signed results without
+API Authorization headers; re-query expired links within the 7-day retention.

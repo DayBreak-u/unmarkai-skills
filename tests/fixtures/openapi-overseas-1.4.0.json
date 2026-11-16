@@ -1,0 +1,514 @@
+{
+  "source": "https://unmarkai.net/openapi-v1.yaml",
+  "retrieved": "2026-11-16",
+  "openapi": "3.1.0",
+  "info": {
+    "title": "UnmarkAI Video API",
+    "version": "1.4.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.unmarkai.net",
+      "description": "Overseas production"
+    },
+    {
+      "url": "https://unmarkai.cn/api",
+      "description": "Mainland China production"
+    }
+  ],
+  "roots": [
+    "VideoUpscaleCreateRequest",
+    "VideoUpscaleJob",
+    "UploadCreateRequest",
+    "RemoveTextJobCreateRequest"
+  ],
+  "components": {
+    "schemas": {
+      "DateTimeNullable": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "JobFailure": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "JobInput": {
+        "type": "object",
+        "required": [
+          "upload_id"
+        ],
+        "properties": {
+          "upload_id": {
+            "$ref": "#/components/schemas/ResourceId"
+          }
+        }
+      },
+      "JobMode": {
+        "type": "string",
+        "enum": [
+          "all_area",
+          "sel_area",
+          "multi_area"
+        ]
+      },
+      "JobResult": {
+        "type": "object",
+        "required": [
+          "url",
+          "expires_at"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "最多有效 1 小时的签名下载 URL"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "当前签名 URL 的过期时间"
+          }
+        }
+      },
+      "JobStatus": {
+        "type": "string",
+        "enum": [
+          "validating",
+          "queued",
+          "processing",
+          "succeeded",
+          "failed",
+          "canceled"
+        ]
+      },
+      "NonNegativeMicrousd": {
+        "type": "integer",
+        "format": "int64",
+        "minimum": 0,
+        "description": "非负的百万分之一美元整数"
+      },
+      "NullableUsdString": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "pattern": "^-?\\d+\\.\\d{6}$"
+      },
+      "PublicAmounts": {
+        "type": "object",
+        "description": "通用金额投影；移除原字段的 _usd 币种片段，不包含整数微单位。嵌套费率保持同样层级。海外旧字段继续返回，国内仅使用通用字段。",
+        "additionalProperties": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?[0-9]+\\.[0-9]{6}$"
+            },
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/components/schemas/PublicAmounts"
+            }
+          ]
+        }
+      },
+      "Rect": {
+        "type": "object",
+        "required": [
+          "x1",
+          "y1",
+          "x2",
+          "y2"
+        ],
+        "description": "源视频绝对像素坐标；要求 x1 < x2、y1 < y2",
+        "properties": {
+          "x1": {
+            "type": "number",
+            "minimum": 0
+          },
+          "y1": {
+            "type": "number",
+            "minimum": 0
+          },
+          "x2": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          },
+          "y2": {
+            "type": "number",
+            "exclusiveMinimum": 0
+          }
+        }
+      },
+      "RemoveTextJobCreateRequest": {
+        "type": "object",
+        "required": [
+          "type",
+          "input",
+          "mode"
+        ],
+        "description": "`mode=sel_area` 时 `rect` 为单个矩形，面积不得超过源画面的一半；\n`mode=multi_area` 时 `rect` 为非空矩形数组，每个矩形须在源画面内，按 all_area 费率计费；\n`mode=all_area` 时 `rect` 必须省略或为 null。\nmetadata 序列化后的 UTF-8 大小不得超过 16 KiB。\n",
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "remove_text"
+          },
+          "input": {
+            "$ref": "#/components/schemas/JobInput"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/JobMode"
+          },
+          "rect": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Rect"
+              },
+              {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "$ref": "#/components/schemas/Rect"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metadata": {
+            "type": "object",
+            "default": null,
+            "additionalProperties": true
+          }
+        }
+      },
+      "ResourceId": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "UploadCreateRequest": {
+        "type": "object",
+        "required": [
+          "filename",
+          "content_type",
+          "file_size_bytes"
+        ],
+        "properties": {
+          "filename": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "单个文件名，不允许路径分隔符或控制字符"
+          },
+          "content_type": {
+            "type": "string",
+            "enum": [
+              "video/mp4",
+              "video/quicktime",
+              "video/x-msvideo",
+              "video/x-matroska",
+              "video/webm",
+              "video/mpeg"
+            ]
+          },
+          "file_size_bytes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483648
+          }
+        }
+      },
+      "UsdString": {
+        "type": "string",
+        "pattern": "^-?\\d+\\.\\d{6}$",
+        "description": "固定 6 位小数的 USD 展示字符串",
+        "example": "1.000000"
+      },
+      "VideoUpscaleCreateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "input",
+          "upscale"
+        ],
+        "properties": {
+          "type": {
+            "const": "video_upscale"
+          },
+          "input": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "upload_id"
+            ],
+            "properties": {
+              "upload_id": {
+                "$ref": "#/components/schemas/ResourceId"
+              }
+            }
+          },
+          "upscale": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "target"
+            ],
+            "properties": {
+              "target": {
+                "type": "string",
+                "enum": [
+                  "1080p",
+                  "2k",
+                  "4k"
+                ]
+              }
+            }
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Optional customer metadata, at most 16 KiB."
+          }
+        },
+        "description": "Upscale one uploaded video, preserving aspect ratio, source FPS and audio. Targets are bounding boxes 1920x1080, 2560x1440 and 3840x2160, with portrait supported. Source must not exceed the target. Up to 2 GiB and 60 minutes. International API returns 202 before media validation; invalid media becomes a failed Job. USD rates use the active all_area base rate times 1/2/3, then a 2x multiplier above 30 FPS, then the account discount. Minimum 15 seconds, rounded up to whole source seconds. No Web credits are used. Trial watermark policy follows the international API account."
+      },
+      "VideoUpscaleJob": {
+        "type": "object",
+        "required": [
+          "currency",
+          "amounts",
+          "id",
+          "type",
+          "status",
+          "input",
+          "upscale",
+          "progress",
+          "queue_position",
+          "duration_ms",
+          "provider_duration_ms",
+          "billable_seconds",
+          "price_version",
+          "tier",
+          "multiplier_bps",
+          "error",
+          "result",
+          "metadata",
+          "created_at",
+          "updated_at",
+          "queued_at",
+          "processing_at",
+          "terminal_at"
+        ],
+        "properties": {
+          "currency": {
+            "type": "string",
+            "enum": [
+              "USD",
+              "CNY"
+            ],
+            "description": "当前地区 API 钱包的币种。"
+          },
+          "amounts": {
+            "$ref": "#/components/schemas/PublicAmounts"
+          },
+          "id": {
+            "$ref": "#/components/schemas/ResourceId"
+          },
+          "type": {
+            "type": "string",
+            "const": "video_upscale"
+          },
+          "status": {
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "input": {
+            "$ref": "#/components/schemas/JobInput"
+          },
+          "upscale": {
+            "$ref": "#/components/schemas/VideoUpscaleParameters"
+          },
+          "progress": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "queue_position": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0,
+            "description": "服务端探测并用于预扣的源视频时长"
+          },
+          "provider_duration_ms": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 0,
+            "description": "完成处理后用于最终结算的实测时长"
+          },
+          "billable_seconds": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 1
+          },
+          "price_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tier": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "multiplier_bps": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "base_rate_microusd_per_second": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 1
+          },
+          "base_rate_usd_per_second": {
+            "$ref": "#/components/schemas/NullableUsdString"
+          },
+          "effective_rate_microusd_per_second": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "minimum": 1
+          },
+          "effective_rate_usd_per_second": {
+            "$ref": "#/components/schemas/NullableUsdString"
+          },
+          "reserved_microusd": {
+            "$ref": "#/components/schemas/NonNegativeMicrousd"
+          },
+          "reserved_usd": {
+            "$ref": "#/components/schemas/UsdString"
+          },
+          "charged_microusd": {
+            "$ref": "#/components/schemas/NonNegativeMicrousd"
+          },
+          "charged_usd": {
+            "$ref": "#/components/schemas/UsdString"
+          },
+          "error": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/JobFailure"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "result": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/JobResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metadata": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "queued_at": {
+            "$ref": "#/components/schemas/DateTimeNullable"
+          },
+          "processing_at": {
+            "$ref": "#/components/schemas/DateTimeNullable"
+          },
+          "terminal_at": {
+            "$ref": "#/components/schemas/DateTimeNullable"
+          }
+        }
+      },
+      "VideoUpscaleParameters": {
+        "type": "object",
+        "required": [
+          "target"
+        ],
+        "properties": {
+          "target": {
+            "type": "string",
+            "enum": [
+              "1080p",
+              "2k",
+              "4k"
+            ]
+          },
+          "fps": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "description": "Verified source average FPS, available after media validation."
+          },
+          "multiplier": {
+            "type": "integer",
+            "enum": [
+              1,
+              2
+            ],
+            "description": "Server-owned frame-rate multiplier, available after media validation."
+          }
+        }
+      }
+    }
+  }
+}
