@@ -1,4 +1,4 @@
-"""Offline checks; fixture excerpt retrieved 2026-11-16 from its source URL.
+"""Offline checks; fixture excerpt retrieved 2026-11-16 from official OpenAPI URLs.
 Run: python3 -m unittest discover -s tests -v (PyYAML and jsonschema required).
 """
 import copy
@@ -92,6 +92,50 @@ class DocumentationTests(unittest.TestCase):
             metadata = yaml.safe_load(path.read_text().split('---')[1])
             self.assertEqual(metadata['name'], path.parent.name)
             self.assertTrue(metadata['description'])
+
+    def test_overseas_hd_is_documented_separately_from_china(self):
+        docs = {
+            path: (ROOT / path).read_text()
+            for path in (
+                'README.md',
+                'README.zh-CN.md',
+                'skills/unmarkai-remove-text/references/api-contract.md',
+                'skills/unmarkai-video-upscale/SKILL.md',
+                'skills/unmarkai-video-upscale/references/curl-fallback.md',
+            )
+        }
+        joined = '\n'.join(docs.values())
+        stale = (
+            'Never assume HD is available overseas',
+            'Do not infer overseas availability',
+            '目前官方文档仅说明中国区 REST 接入',
+            '共享 OpenAPI 的海外 server 条目不代表海外已开放此能力',
+        )
+        for phrase in stale:
+            self.assertNotIn(phrase, joined)
+        contract = docs['skills/unmarkai-remove-text/references/api-contract.md']
+        self.assertIn('https://unmarkai.net/openapi-v1.yaml', contract)
+        self.assertIn('https://unmarkai.cn/openapi-v1.yaml', contract)
+        self.assertIn('https://api.unmarkai.net/v1', contract)
+        self.assertIn('all_area', contract)
+        self.assertIn('times 1/2/3', contract)
+        self.assertIn('CNY 0.04', contract)
+        self.assertIn('Do **not** apply China CNY', contract)
+        self.assertIn('does **not** name', contract)
+        self.assertIn('`video_upscale`', contract)
+        self.assertIn('output_resolution', contract)
+        self.assertIn('https://unmarkai.net/openapi-v1.yaml', docs['README.md'])
+        self.assertIn('all_area', docs['README.md'])
+        self.assertIn('https://api.unmarkai.net/v1', docs['README.zh-CN.md'])
+        self.assertIn('api.unmarkai.net/v1', docs['skills/unmarkai-video-upscale/references/curl-fallback.md'])
+        self.assertEqual(CONTRACT['overseas_openapi_version'], '1.4.0')
+        self.assertIn('unmarkai.net/openapi-v1.yaml', CONTRACT['source'])
+        overseas = CONTRACT['video_upscale_descriptions']['overseas_openapi_1_4_0']
+        china = CONTRACT['video_upscale_descriptions']['china_openapi_1_3_0']
+        self.assertIn('International API', overseas)
+        self.assertIn('all_area base rate times 1/2/3', overseas)
+        self.assertIn('中国区视频高清', china)
+        self.assertIn('0.04', china)
 
 
 if __name__ == '__main__':

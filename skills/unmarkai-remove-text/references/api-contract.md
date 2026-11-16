@@ -1,9 +1,11 @@
 # Public API contract notes
 
-Verified 2026-11-16 against the [domestic OpenAPI 1.3.0](https://unmarkai.cn/openapi-v1.yaml)
-and the [official developer guide](https://unmarkai.cn/developers/docs/), discovered
-from the [homepage](https://unmarkai.cn/). The [HD product page](https://unmarkai.cn/features/video-upscale/)
-describes website credits; use the developer guide for API billing.
+Verified 2026-11-16 against these public sources:
+
+- Overseas OpenAPI 1.4.0: [https://unmarkai.net/openapi-v1.yaml](https://unmarkai.net/openapi-v1.yaml). Official example READMEs also treat this file as the overseas contract source of truth.
+- China OpenAPI 1.3.0: [https://unmarkai.cn/openapi-v1.yaml](https://unmarkai.cn/openapi-v1.yaml) and the [China developer guide](https://unmarkai.cn/developers/docs/), discovered from [unmarkai.cn](https://unmarkai.cn/).
+- The older path `https://unmarkai.net/developers/docs/` returns 404 and is not a source. The overseas homepage points to [API product pages](https://unmarkai.net/video-text-removal-api/), [translation API](https://unmarkai.net/video-translation-api/), and [Dashboard → API Documentation](https://unmarkai.net/dashboard/api/docs). The dashboard docs URL is a login/SPA shell when fetched unauthenticated; billing and fields below come from the public OpenAPI, not from a logged-in console.
+- Website HD pages such as [unmarkai.net/video-upscaler](https://unmarkai.net/video-upscaler/) and [unmarkai.cn/features/video-upscale](https://unmarkai.cn/features/video-upscale/) describe website credits; they are not API prices.
 
 ## Regions, authentication and shared lifecycle
 
@@ -58,12 +60,19 @@ Webhooks report state transitions, not every progress value or signed URLs;
 query the job after an event. See the official guide for raw-body signature
 verification and event deduplication.
 
-`cancelApiJob` (`POST /jobs/{job_id}/cancel`, body `{}`) cancels cleanup and HD
-only in `validating`/`queued`; processing translation can also be canceled.
-Already canceled returns the current job. Handle 409 `job_not_cancelable` when
-the job advances before cancellation. Server validation precedes reservation;
-success settles actual duration, undelivered failure/allowed cancellation releases
-reserved money. A client timeout does not cancel a job.
+`cancelApiJob` (`POST /jobs/{job_id}/cancel`, body `{}`) is the documented
+cancel endpoint. Already canceled returns the current job. Handle 409
+`job_not_cancelable` when the job advances before cancellation. Server
+validation precedes reservation; success settles actual duration, undelivered
+failure or an allowed cancellation releases reserved money. A client timeout
+does not cancel a job.
+
+The China developer guide documents cleanup and HD cancel only in
+`validating`/`queued`; processing translation can also be canceled. The
+overseas OpenAPI 1.4.0 `cancelApiJob` text names Remove Text (`validating` /
+`queued`) and translation (also `processing`) but does **not** name
+`video_upscale`. Do not assume an overseas HD cancel window from the China
+guide or from cleanup/translation rules.
 
 The guide says default execution concurrency is two per account, shared across
 keys; read `GET /balance` → `concurrency` for actual `effective_limit`,
@@ -82,8 +91,22 @@ Fix auth, parameters or balance before retrying; use bounded retries for tempora
 
 ## Video HD / enhancement / super-resolution
 
-The sole official task string is **`video_upscale`**, documented for **China**.
-Do not infer overseas availability from the shared server list.
+The official task string is **`video_upscale`**. It is available on both
+regional REST APIs:
+
+- Overseas: confirmed by [OpenAPI 1.4.0](https://unmarkai.net/openapi-v1.yaml). The
+  document describes a public video-HD API, `JobCreateRequest` / `Job` include
+  this type, and `VideoUpscaleCreateRequest` specifies the International API.
+  Use `https://api.unmarkai.net/v1`.
+- China: confirmed by [OpenAPI 1.3.0](https://unmarkai.cn/openapi-v1.yaml)
+  (`VideoUpscaleCreateRequest` is labeled 中国区视频高清) and the
+  [China developer guide](https://unmarkai.cn/developers/docs/). Use
+  `https://unmarkai.cn/api/v1`.
+
+There is no documented native HD MCP tool in the public overseas or China
+materials; do not invent an `upscale` MCP tool. Official example repositories
+document MCP for text cleanup only.
+
 Required creation fields: `type`, `input.upload_id`, `upscale.target`.
 `upscale.target` accepts exactly `1080p`, `2k`, `4k`; optional `metadata` is an
 object. No client `fps`, multiplier, model, strength or scale parameter exists.
@@ -94,21 +117,43 @@ are supported; preserve aspect ratio, frame rate and audio, with no platform
 watermark on API output. Stereo conversion is recommended for multichannel audio.
 Output is the enhanced video through `result.url`; no separate SRT is promised.
 Response `upscale` contains `target`, server-probed `fps` and `multiplier` (1 or 2).
+Shared upload limits still apply: up to 2147483648 bytes (2 GiB) and 60 minutes.
+The International API returns 202 before media validation; invalid media becomes
+a failed job.
 
-Standard API prices: CNY 0.04 / 0.08 / 0.12 per second for 1080p / 2k / 4k.
-Billable seconds = `max(15, ceil(actual_seconds))`. Average FPS **greater than**
-30 doubles the rate (29.97 does not, 59.94 does), then account recharge discount
-applies. The guide's 10/20/30 credit ratio is explanatory; this API charges its
-CNY wallet, not website credits, 30-second blocks or a 1-second buffer.
+### China billing
 
-There is **no REST estimate endpoint** in this OpenAPI and no documented native
-HD MCP tool. Read `getApiBalance` (`GET /balance`) → `amounts.upscale_rates` for
-account-discounted ≤30 FPS rates, then locally estimate using duration and FPS.
-The guide does not specify the nested rate keys: inspect the actual response;
-do not invent them. Display currency, calculation and uncertainty before spending.
-For example 30s at 4k/60 FPS: CNY 7.20 standard or CNY 5.76 at 20% discount.
-Final costs use server measurements and job `currency` / `amounts`.
-Cancel, result, reservation, retention and shared upload limits are as above.
+Standard API prices in the China OpenAPI / developer guide: CNY 0.04 / 0.08 /
+0.12 per second for 1080p / 2k / 4k. Billable seconds =
+`max(15, ceil(actual_seconds))`. Average FPS **greater than** 30 doubles the
+rate (29.97 does not, 59.94 does), then the account recharge discount applies.
+The website 10/20/30 credit ratio is not API billing; China API charges the CNY
+wallet, not website credits, 30-second blocks or a 1-second buffer. For example,
+30s at 4k/60 FPS is CNY 7.20 standard or CNY 5.76 at 20% discount.
+
+### Overseas billing
+
+Do **not** apply China CNY 0.04 / 0.08 / 0.12 to overseas. The International
+API uses the regional USD wallet and does not use website credits. OpenAPI 1.4.0
+says USD rates use the active `all_area` base rate times 1/2/3 for 1080p / 2k /
+4k, then a 2× multiplier above 30 FPS, then the account discount. Minimum 15
+seconds, rounded up to whole source seconds. The contract does not publish a
+fixed overseas dollar list price; read `getApiBalance` (`GET /balance`) →
+`amounts.upscale_rates` (and `upscale_rates` when present) for
+account-discounted ≤30 FPS rates. `upscale_rates` is not a required
+`PublicBalance` field. Inspect the actual response keys; do not invent them.
+Display currency, calculation and uncertainty before spending. Final costs use
+server measurements and the job `currency` / `amounts`.
+
+Trial watermark policy “follows the international API account”; the public
+contract does not define further API trial details. Do not treat the website
+upscaler’s 4-second watermarked trial as an API rule.
+
+There is **no REST estimate endpoint** in these OpenAPI documents. Locally
+estimate from duration, FPS and the regional balance rates, then obtain spend
+authorization. Result, reservation, retention and shared upload limits are as
+above. For cancel, see the regional notes in the lifecycle section; do not
+guess an overseas HD cancel window.
 
 **Translation `output_resolution` is not enhancement**: it belongs to
 `video_translation`, accepts `source` / `720p` / `1080p`, caps output while

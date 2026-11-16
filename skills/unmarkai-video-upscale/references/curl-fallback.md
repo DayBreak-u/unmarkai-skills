@@ -1,16 +1,18 @@
-# Video HD REST workflow (China)
+# Video HD REST workflow
 
 These commands create a billable job when run with real inputs. Only use authorized
 material and confirm the estimate before submission. This repository's tests do
 not execute requests. Requires Bash, curl with `--fail-with-body`, jq and ffprobe.
-See [contract notes](../../unmarkai-remove-text/references/api-contract.md) for authoritative sources.
+See [contract notes](../../unmarkai-remove-text/references/api-contract.md) for authoritative sources and regional billing.
 
 ## Prepare and estimate locally
 
 ```bash
 set -euo pipefail
-: "${UNMARKAI_API_KEY:?set your China API key}"
-API='https://unmarkai.cn/api/v1'
+: "${UNMARKAI_API_KEY:?set the API key for the chosen region}"
+# Overseas: API='https://api.unmarkai.net/v1'
+# China:    API='https://unmarkai.cn/api/v1'
+API='https://api.unmarkai.net/v1'
 VIDEO='source.mp4'
 TARGET='4k'  # exactly 1080p, 2k or 4k
 AUTH="Authorization: Bearer $UNMARKAI_API_KEY"
@@ -24,8 +26,10 @@ curl --fail-with-body -sS "$API/balance" -H "$AUTH" \
 Check both source edges against the target and read `amounts.upscale_rates`.
 The docs do not fix its nested keys, so inspect the returned rates. Compute
 `max(15, ceil(duration_seconds)) × discounted_target_rate × (FPS > 30 ? 2 : 1)`.
-No REST estimate endpoint or HD MCP estimate tool is documented. Standard 30s,
-4k, 60 FPS costs CNY 7.20 before discount. Do not use website credit blocks.
+No REST estimate endpoint or HD MCP estimate tool is documented. China standard
+30s, 4k, 60 FPS costs CNY 7.20 before discount. Overseas OpenAPI 1.4.0 uses the
+USD `all_area` base × 1/2/3, then the FPS multiplier and discount; do not copy
+CNY list prices or website credit blocks.
 
 ## Upload local bytes
 
@@ -102,13 +106,16 @@ done
 
 Response `upscale.fps` and `upscale.multiplier` are server-derived, not request
 parameters. Refresh an expired result link with GET during the 7-day retention.
-To cancel while validating/queued (a separate optional action):
+To request cancel (a separate optional action). The China guide allows this
+while validating/queued; overseas OpenAPI 1.4.0 does not name `video_upscale`
+in the cancel description:
 
 ```bash
 curl --fail-with-body -sS -X POST "$API/jobs/$JOB_ID/cancel" -H "$AUTH" \
   -H 'Content-Type: application/json' --data '{}'
 ```
 
-A state race may return 409 `job_not_cancelable`; processing HD cannot be canceled.
-Do not blindly retry auth/validation/balance errors. On 429 honor Retry-After and
-use bounded backoff; preserve IDs and keys on transient failures.
+A state race may return 409 `job_not_cancelable`. Do not assume an overseas HD
+job can be canceled in a particular state. Do not blindly retry
+auth/validation/balance errors. On 429 honor Retry-After and use bounded
+backoff; preserve IDs and keys on transient failures.

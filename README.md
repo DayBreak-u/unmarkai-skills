@@ -8,13 +8,14 @@ English | [简体中文](README.zh-CN.md)
 
 Agent skills for [UnmarkAI](https://unmarkai.net) — let Claude, Codex,
 Cursor, opencode and any MCP-capable agent **remove hardcoded text
-(subtitles, captions, on-screen titles) from videos you own** and **enhance authorized videos to 1080p, 2K or 4K** through the China REST API.
+(subtitles, captions, on-screen titles) from videos you own** and **enhance authorized videos to 1080p, 2K or 4K** through the regional REST API.
 Use `UNMARKAI_API_KEY` for your chosen region.
 
 Product page: **[Video Text Removal API & MCP Server](https://unmarkai.net/video-text-removal-api/)**.
 
-Text cleanup supports MCP and REST. Video HD (`video_upscale`) is currently
-documented for China through REST only; translation is a separate service.
+Text cleanup supports MCP and REST. Video HD (`video_upscale`) is available
+on both the overseas and China REST APIs; there is no documented native HD
+MCP tool. Translation is a separate service.
 See [verified API contract and regional limits](skills/unmarkai-remove-text/references/api-contract.md) and
 the [HD skill](skills/unmarkai-video-upscale/SKILL.md).
 
@@ -237,19 +238,25 @@ such markers from content you don't control may be unlawful — don't.
 
 The removal skill and published MCP tools cover text cleanup; the HD skill uses REST. Use the translation REST examples for the next localization stage; cleanup and translation are separate, separately billed jobs.
 
-## Video HD (China REST)
+## Video HD (REST)
 
 Install [unmarkai-video-upscale](skills/unmarkai-video-upscale/SKILL.md), then ask:
 
-> Enhance my own source.mp4 to 4K. Estimate CNY cost first, preserve frame rate
-> and audio, and download the result.
+> Enhance my own source.mp4 to 4K. Estimate cost in this region's API wallet
+> currency first, preserve frame rate and audio, and download the result.
 
 Follow the [complete curl workflow](skills/unmarkai-video-upscale/references/curl-fallback.md):
 probe → balance/local estimate → upload or HTTPS import → `POST /jobs` with
 `{"type":"video_upscale","input":{"upload_id":"upl_REPLACE"},"upscale":{"target":"4k"}}`
-→ poll → download `result.url`. Targets: `1080p`, `2k`, `4k`; the server determines
-FPS and doubles rates above 30 FPS. Standard CNY rates: 0.04/0.08/0.12 per second,
-minimum 15 seconds, then account discount. Cancel only while validating/queued.
+→ poll → download `result.url`. Use `https://api.unmarkai.net/v1` with an
+overseas key, or `https://unmarkai.cn/api/v1` with a China key. Targets:
+`1080p`, `2k`, `4k`; the server determines FPS and doubles rates above 30 FPS.
+China standard prices are CNY 0.04/0.08/0.12 per second, minimum 15 seconds,
+then account discount. Overseas OpenAPI 1.4.0 bills USD as the active
+`all_area` base rate × 1/2/3 for 1080p/2k/4k, then the same FPS multiplier and
+discount, also with a 15-second minimum; read live `amounts.upscale_rates`
+instead of copying CNY list prices. The public overseas cancel text does not
+name `video_upscale`; do not assume a cancel window.
 See [contract notes](skills/unmarkai-remove-text/references/api-contract.md) for all input, output, size,
 resolution, retention, concurrency, billing and error details.
 
@@ -261,10 +268,12 @@ HD enhancement and does not forcibly upscale small sources.
 China REST: `https://unmarkai.cn/api/v1`; MCP: `https://unmarkai.cn/api/mcp`.
 Overseas REST: `https://api.unmarkai.net/v1`; MCP: `https://api.unmarkai.net/mcp`.
 The client examples above using `.net` are overseas configurations. Change both
-endpoint and key for China. Never assume HD is available overseas.
-Read `currency` and `amounts`; China uses CNY, not legacy USD fields.
+endpoint and key for China.
+Read `currency` and `amounts`; China uses CNY, not legacy USD fields. Overseas
+HD uses the USD wallet and the 1.4.0 rate formula, not China CNY list prices.
 
-Contract checked 2026-11-16: [OpenAPI](https://unmarkai.cn/openapi-v1.yaml),
-[developer docs](https://unmarkai.cn/developers/docs/).
+Contract checked 2026-11-16: [overseas OpenAPI 1.4.0](https://unmarkai.net/openapi-v1.yaml),
+[China OpenAPI 1.3.0](https://unmarkai.cn/openapi-v1.yaml),
+[China developer docs](https://unmarkai.cn/developers/docs/).
 Run offline checks with Python 3 plus PyYAML/jsonschema:
 `python3 -m unittest discover -s tests -v`. No real uploads or paid jobs are needed.

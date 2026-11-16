@@ -2,9 +2,9 @@
 
 [English](README.md) | 简体中文
 
-为剪狐 / UnmarkAI API 提供 Agent Skills 和远程 MCP 接入指南，帮助 Claude、Codex、Cursor 等客户端处理**自己拥有或已获授权的视频**：去除硬字幕、画面文字，或通过中国区 REST API 将视频增强至 1080p、2K、4K。
+为剪狐 / UnmarkAI API 提供 Agent Skills 和远程 MCP 接入指南，帮助 Claude、Codex、Cursor 等客户端处理**自己拥有或已获授权的视频**：去除硬字幕、画面文字，或通过对应地区的 REST API 将视频增强至 1080p、2K、4K。
 
-本仓库不提供独立处理引擎。文字擦除可使用远程 MCP 或 REST；视频高清使用正式任务类型 `video_upscale`，目前官方文档仅说明中国区 REST 接入，没有对应的原生 MCP 工具。
+本仓库不提供独立处理引擎。文字擦除可使用远程 MCP 或 REST；视频高清使用正式任务类型 `video_upscale`，海外与中国区 REST 均已在公开契约中提供，没有对应的原生 MCP 工具。
 
 ## 选择地区并准备密钥
 
@@ -29,7 +29,7 @@ export UNMARKAI_API_KEY='uma_live_REPLACE_WITH_YOUR_KEY'
 本仓库的两个技能分别是：
 
 - [unmarkai-remove-text](skills/unmarkai-remove-text/SKILL.md)：文字擦除，包含选区、上传、估价、查询和下载指引。
-- [unmarkai-video-upscale](skills/unmarkai-video-upscale/SKILL.md)：视频高清，通过中国区 REST 创建任务。
+- [unmarkai-video-upscale](skills/unmarkai-video-upscale/SKILL.md)：视频高清，通过所选地区的 REST 创建任务。
 
 在本仓库根目录执行复制命令；若安装到其他项目，请将目标目录改为该项目路径。
 
@@ -105,9 +105,9 @@ Windsurf、Gemini CLI、opencode 和采用 `mcp-remote` 桥接的 Claude Desktop
 
 例如：
 
-> 把我自己的 source.mp4 增强到 4K。先按人民币估价，保留帧率和音轨，确认费用后提交并下载结果。
+> 把我自己的 source.mp4 增强到 4K。先按当前地区 API 钱包币种估价，保留帧率和音轨，确认费用后提交并下载结果。
 
-使用中国区 `POST /jobs`（完整地址 `https://unmarkai.cn/api/v1/jobs`）：
+向所选地区的 `POST /jobs` 提交（海外完整地址 `https://api.unmarkai.net/v1/jobs`，中国区 `https://unmarkai.cn/api/v1/jobs`）：
 
 ```json
 {
@@ -120,7 +120,7 @@ Windsurf、Gemini CLI、opencode 和采用 `mcp-remote` 桥接的 Claude Desktop
 
 必填 `type`、`input.upload_id`、`upscale.target`，`metadata` 可选且不超过 16 KiB。`target` 仅接受 `1080p`、`2k`、`4k`。不要提交 FPS、倍率、模型或增强强度等契约未提供的参数。服务端返回的 `upscale.fps`、`upscale.multiplier` 是探测结果。
 
-| target | 源视频长边 / 短边上限 | 标准价（≤30 FPS） |
+| target | 源视频长边 / 短边上限 | 中国区标准价（≤30 FPS） |
 |---|---|---|
 | `1080p` | 1920 / 1080 | ¥0.04/秒 |
 | `2k` | 2560 / 1440 | ¥0.08/秒 |
@@ -128,11 +128,13 @@ Windsurf、Gemini CLI、opencode 和采用 `mcp-remote` 桥接的 Claude Desktop
 
 支持竖屏和同分辨率增强，保留比例、帧率和音轨，API 成片不加平台水印。单视频最多 60 分钟；上传契约精确限制为 2147483648 字节（2 GiB），高清指南简写为 2 GB。支持 MP4、MOV、AVI、MKV、WebM、MPEG；多声道音频建议先转为立体声。
 
-API 计费秒数为 `max(15, ceil(实际秒数))`。平均帧率**大于** 30 FPS 时费率翻倍，再应用账户折扣；29.97 不翻倍，59.94 翻倍。30 秒 4K / 60 FPS 标准费用 ¥7.20，八折后 ¥5.76。不能套用网页的每 30 秒积分档位或 1 秒缓冲规则。
+中国区计费秒数为 `max(15, ceil(实际秒数))`。平均帧率**大于** 30 FPS 时费率翻倍，再应用账户折扣；29.97 不翻倍，59.94 翻倍。30 秒 4K / 60 FPS 的中国区标准费用是 ¥7.20，八折后 ¥5.76。不能套用网页的每 30 秒积分档位或 1 秒缓冲规则。
 
-没有公开的 REST 高清估价端点。先用 `GET /balance` 读取 `amounts.upscale_rates` 中已含折扣的 ≤30 FPS 秒价，再结合本地探测的时间及 FPS 估算。指南未固定该对象的嵌套键名，应检查实际返回值，不能自行编造。最终费用以服务端探测和任务的 `currency` / `amounts` 为准。
+海外区不要套用上述人民币单价。海外 OpenAPI 1.4.0 写明使用 USD 钱包：以当前 `all_area` 基础费率 × 1/2/3（对应 1080p/2k/4k），平均帧率大于 30 再 ×2，然后再套账户折扣；同样最低 15 秒，并按源时长向上取整到整秒。契约没有公布固定的海外美元标价，必须读取 `GET /balance` 的 `amounts.upscale_rates`（以及响应里如有的 `upscale_rates`）。
 
-完整可执行步骤见[高清 curl 流程](skills/unmarkai-video-upscale/references/curl-fallback.md)：本地探测 → 余额与估价 → 上传或 HTTPS 导入 → 创建 → 有截止时间的轮询 → 下载。高清目前仅有 REST 接入文档；共享 OpenAPI 的海外 server 条目不代表海外已开放此能力。
+没有公开的 REST 高清估价端点。先用余额接口读取已含折扣的 ≤30 FPS 秒价，再结合本地探测的时间及 FPS 估算。未固定的嵌套键名应检查实际返回值，不能自行编造。最终费用以服务端探测和任务的 `currency` / `amounts` 为准。
+
+完整可执行步骤见[高清 curl 流程](skills/unmarkai-video-upscale/references/curl-fallback.md)：本地探测 → 余额与估价 → 上传或 HTTPS 导入 → 创建 → 有截止时间的轮询 → 下载。高清在两区都走 REST，公开文档没有原生 MCP 工具。海外 OpenAPI 的取消说明没有点名 `video_upscale`，不要自行假定可取消窗口。
 
 翻译任务 `video_translation` 的 `output_resolution` 是另一个功能，只接受 `source`、`720p`、`1080p`，用于限制翻译视频的输出尺寸，不强行放大低分辨率素材，**不能替代视频高清服务**。翻译和擦除也分别创建、分别计费。
 
@@ -143,7 +145,7 @@ API 计费秒数为 `max(15, ceil(实际秒数))`。平均帧率**大于** 30 FP
 - 创建任务和导入直链都必须提供 `Idempotency-Key`（1–255 字符，账号内有效 24 小时）。每个业务操作保存一个键，重试时复用原键和相同请求体；改变参数时使用新键。
 - 上传未绑定任务时有效 24 小时，最多 100 个有效未绑定上传，滚动 24 小时未消费上传量最多 20 GiB；申请凭证前需有最低计费余额。
 - `GET /jobs/{job_id}` 查询状态，建议每 5 秒一次并设置截止时间。超时保留任务 ID，不要重新提交。默认并发为账号共享的两个执行任务，实际读取余额响应 `concurrency`。
-- 高清及擦除仅能在 `validating` / `queued` 阶段通过 `POST /jobs/{job_id}/cancel` 取消；状态变化可能返回 409 `job_not_cancelable`。未交付失败或允许的取消释放冻结费用，成功后结算。
+- 取消使用 `POST /jobs/{job_id}/cancel`。中国区指南写明擦除和高清仅能在 `validating` / `queued` 取消；海外 OpenAPI 1.4.0 的取消说明只写了擦除和翻译，没有点名高清，不要套用中国区规则去猜海外可取消阶段。状态变化可能返回 409 `job_not_cancelable`。未交付失败或允许的取消释放冻结费用，成功后结算。
 - 成功后从 `result.url` 下载，链接最长 1 小时，文件保留 7 天。保留期内链接过期可重新查询任务。下载时不要向资源服务器转发 API 密钥。
 
 ## 错误与安全
@@ -154,7 +156,7 @@ API 计费秒数为 `max(15, ceil(实际秒数))`。平均帧率**大于** 30 FP
 
 ## 文档来源与离线验证
 
-2026-11-16 核对的权威来源：[国内 OpenAPI 1.3.0](https://unmarkai.cn/openapi-v1.yaml)、[官方 API 指南](https://unmarkai.cn/developers/docs/)、[高清产品页](https://unmarkai.cn/features/video-upscale/)（网页计费与 API 分开）。字段、错误、限制和计费细节集中在[契约参考](skills/unmarkai-remove-text/references/api-contract.md)。
+2026-11-16 核对的权威来源：[海外 OpenAPI 1.4.0](https://unmarkai.net/openapi-v1.yaml)、[国内 OpenAPI 1.3.0](https://unmarkai.cn/openapi-v1.yaml)、[中国区 API 指南](https://unmarkai.cn/developers/docs/)。`https://unmarkai.net/developers/docs/` 现为 404，不能用来判断海外是否支持。海外站点上的高清产品页是网站积分说明，与 API 计费分开。字段、错误、限制和计费细节集中在[契约参考](skills/unmarkai-remove-text/references/api-contract.md)。
 
 测试依赖 Python 3、PyYAML、jsonschema，运行 `python3 -m unittest discover -s tests -v`。仅解析小型契约快照、验证请求体、检查本地链接和 Bash 语法，不会上传或调用付费任务。
 

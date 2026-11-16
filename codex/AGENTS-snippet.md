@@ -14,15 +14,16 @@ Paste this optional block into the consuming project's AGENTS.md:
 
 Use the installed unmarkai-remove-text skill for authorized text cleanup and
 unmarkai-video-upscale for authorized HD enhancement. Read each skill's references
-before calling the service. For cleanup, MCP is optional; HD is documented only
-through China REST with type video_upscale, not a native MCP tool.
+before calling the service. For cleanup, MCP is optional; HD uses REST type
+video_upscale in the matching region and has no documented native MCP tool.
 
 Choose region and matching API key/wallet. China REST is
 https://unmarkai.cn/api/v1 and MCP is https://unmarkai.cn/api/mcp;
 overseas REST is https://api.unmarkai.net/v1 and MCP is
 https://api.unmarkai.net/mcp. Never print UNMARKAI_API_KEY or signed URLs.
-Read currency/amounts for prices; estimate before spending and obtain authorization
-when not already provided. Do not confuse translation output_resolution with HD.
+Read currency/amounts for prices; do not apply China CNY HD list prices to
+overseas. Estimate before spending and obtain authorization when not already
+provided. Do not confuse translation output_resolution with HD.
 
 Persist business idempotency keys and job IDs. Upload once with every ticket
 header, or wait for URL import to become uploaded. Use bounded polling and

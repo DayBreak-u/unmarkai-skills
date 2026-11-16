@@ -1,5 +1,5 @@
 {
-  "source": "https://unmarkai.cn/openapi-v1.yaml",
+  "source": "https://unmarkai.net/openapi-v1.yaml",
   "retrieved": "2026-11-16",
   "openapi": "3.1.0",
   "info": {
@@ -217,5 +217,23 @@
         }
       }
     }
-  }
+  },
+  "source_china": "https://unmarkai.cn/openapi-v1.yaml",
+  "sources": [
+    {
+      "url": "https://unmarkai.net/openapi-v1.yaml",
+      "version": "1.4.0",
+      "title_covers": "video text removal, translation, and video HD"
+    },
+    {
+      "url": "https://unmarkai.cn/openapi-v1.yaml",
+      "version": "1.3.0",
+      "video_upscale_scope": "China / 中国区"
+    }
+  ],
+  "video_upscale_descriptions": {
+    "overseas_openapi_1_4_0": "Upscale one uploaded video, preserving aspect ratio, source FPS and audio. Targets are bounding boxes 1920x1080, 2560x1440 and 3840x2160, with portrait supported. Source must not exceed the target. Up to 2 GiB and 60 minutes. International API returns 202 before media validation; invalid media becomes a failed Job. USD rates use the active all_area base rate times 1/2/3, then a 2x multiplier above 30 FPS, then the account discount. Minimum 15 seconds, rounded up to whole source seconds. No Web credits are used. Trial watermark policy follows the international API account.",
+    "china_openapi_1_3_0": "中国区视频高清。1080p/2K/4K 标准价每秒人民币0.04/0.08/0.12元；服务端探测平均帧率，大于30 FPS翻倍，再应用充值折扣。最低15秒，向上取整到整秒；保留画面比例、帧率和音轨，无平台水印。"
+  },
+  "overseas_openapi_version": "1.4.0"
 }
