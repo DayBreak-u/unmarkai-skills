@@ -6,8 +6,10 @@ description: Remove hardcoded text (subtitles, captions, on-screen titles) from 
 # UnmarkAI Remove Text
 
 Remove hardcoded subtitles, captions, and on-screen text from videos you own
-using the UnmarkAI API. Billing is per second of video (rounded up, 1-second
-minimum); `sel_area` mode costs roughly half of `all_area`.
+using the UnmarkAI API. Billing is per second of video (rounded up; the billing
+minimum varies by region; China uses 15 seconds); `sel_area` costs roughly half
+of `all_area`. Read [current contract notes](references/api-contract.md)
+for region-specific prices, shared upload limits, cancellation and errors.
 
 ## Rights guardrail — read first
 
@@ -26,7 +28,7 @@ ownership or provide their own footage.
 ## Prerequisites
 
 - The `unmarkai` MCP server is connected (remote HTTP:
-  `https://api.unmarkai.net/mcp`), or `UNMARKAI_API_KEY` is set and you follow
+  China `https://unmarkai.cn/api/mcp` or overseas `https://api.unmarkai.net/mcp`), or `UNMARKAI_API_KEY` is set and you follow
   [references/curl-fallback.md](references/curl-fallback.md) instead.
 - `curl` and `jq` are available (local file upload and result download are
   done with curl — the remote MCP server cannot read local files).
@@ -38,7 +40,8 @@ ownership or provide their own footage.
 1. **Probe the video** — get width, height, and duration with ffprobe. A
    directly downloadable HTTPS video URL can be passed to ffprobe as input.
 2. **Estimate cost** — call `estimate_cost` with `duration_seconds` and the
-   chosen `mode`. Confirm the estimate with the user before spending.
+   chosen `mode`; read `currency` and `amounts`. Obtain spending authorization
+   if not already provided. This estimate tool is for cleanup, not HD.
 3. **Prepare the input** — choose exactly one path:
    - Local file: call `create_upload` with the bare filename, exact MIME type,
      and exact byte size (`stat -f%z` on macOS, `stat -c%s` on Linux).
@@ -54,7 +57,8 @@ ownership or provide their own footage.
    `uploaded`, `failed`, or `expired`; never create a job while importing.
 5. **Create the job** — call `remove_text` with the `upload_id`. For partial
    regions use `mode: "sel_area"` plus `rect` (absolute pixels of the ORIGINAL
-   video, 8–16px margin around the text); otherwise `mode: "all_area"`. Pass a
+   video, 8–16px margin around the text); otherwise `mode: "all_area"`. REST also supports `multi_area` with a nonempty
+   array of rectangles at the full-frame rate; verify MCP tool schema before using it. Pass a
    stable `idempotency_key` you generated (e.g. a hash of file + rect) so
    retries never create duplicate jobs.
 6. **Wait for the result** — call `get_job` with `wait_seconds: 60` in a loop
@@ -65,6 +69,7 @@ ownership or provide their own footage.
 
 ## Choosing the mode
 
+- `sel_area` rectangle area must not exceed half the source frame.
 - Text confined to a known region (bottom subtitles, corner captions):
   `sel_area` + `rect` — roughly half the price.
 - Text anywhere on screen, moving text, or unsure: `all_area`.
@@ -80,9 +85,9 @@ ownership or provide their own footage.
 | `rate_limit_exceeded` | Too many calls | Pause ~5s, retry; poll at most once per 2s |
 | `insufficient_balance` | Wallet empty | Tell the user to top up in the dashboard, then retry |
 | Job `failed` with `error.code` | Processing error | Report `error.message`; a failed job is not charged |
-| PUT upload returns 412 | Ticket already used | Call `create_upload` again for a fresh ticket |
+| PUT upload returns 409/412 | Ticket already used | Inspect upload status; obtain a fresh ticket if necessary |
 | URL upload `failed` | Source could not be imported | Report `error.message`; verify it is a public HTTPS direct video URL with stable size/MIME, then use a new idempotency key after fixing the URL |
-| `INVALID_RECT` / rect errors | Bad coordinates | Re-check dimensions with ffprobe; rect must satisfy `0 ≤ x1 < x2 ≤ width`, `0 ≤ y1 < y2 ≤ height` |
+| `invalid_request` / rect errors | Bad coordinates | Re-check dimensions with ffprobe; rect must satisfy `0 ≤ x1 < x2 ≤ width`, `0 ≤ y1 < y2 ≤ height` |
 
 ## Do not
 
@@ -100,3 +105,6 @@ ownership or provide their own footage.
 If the `unmarkai` MCP server is not connected, run the exact same flow over
 plain REST with curl — see
 [references/curl-fallback.md](references/curl-fallback.md).
+
+Cancel via `cancel_job` or POST `/jobs/{job_id}/cancel` only during validating/queued;
+handle `job_not_cancelable` if the state changes.

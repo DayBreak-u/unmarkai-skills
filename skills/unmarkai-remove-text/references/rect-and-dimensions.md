@@ -22,7 +22,7 @@ Example output:
   not normalized 0–1 values, and never relative to a preview or a re-encoded
   copy.
 - `duration` is a string of seconds; billing rounds it **up** to whole seconds
-  with a 1-second minimum (12.34s → 13 billable seconds).
+  with a regional minimum (China: 15 seconds; 12.34s → 15 billable seconds).
 
 ## Define the rect
 
@@ -41,6 +41,8 @@ Rules enforced by the API:
 
 - `0 ≤ x1 < x2 ≤ width` and `0 ≤ y1 < y2 ≤ height`
 - The region must be inside the frame and non-empty.
+- For `sel_area`, area must not exceed half the frame; REST `multi_area` accepts
+  a nonempty array of rectangles at the full-frame rate.
 
 ## Margin and typical cases
 
