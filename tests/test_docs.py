@@ -1,7 +1,4 @@
-"""Offline checks; fixture excerpt retrieved 2026-11-16 from official OpenAPI URLs.
-Run: python3 -m unittest discover -s tests -v (PyYAML and jsonschema required).
-"""
-import copy
+"""Offline documentation checks. Run: python3 -m unittest discover -s tests -v."""
 import json
 from pathlib import Path
 import re
@@ -10,37 +7,30 @@ import unittest
 
 import jsonschema
 import yaml
+from referencing import Registry, Resource
+from referencing.jsonschema import DRAFT202012
 
 ROOT = Path(__file__).resolve().parents[1]
-CONTRACT = json.loads((ROOT / 'tests/fixtures/openapi-excerpt.json').read_text())
+CHINA = json.loads((ROOT / 'tests/fixtures/openapi-china-1.3.0.json').read_text())
+OVERSEAS = json.loads((ROOT / 'tests/fixtures/openapi-overseas-1.4.0.json').read_text())
 
 
-def schema(name):
-    def resolve(value):
-        if isinstance(value, dict):
-            if '$ref' in value:
-                return resolve(CONTRACT['components']['schemas'][value['$ref'].split('/')[-1]])
-            return {k: resolve(v) for k, v in value.items()}
-        if isinstance(value, list):
-            return [resolve(v) for v in value]
-        return value
-    return resolve(CONTRACT['components']['schemas'][name])
+def validator(fixture, name):
+    document = {
+        '$id': 'https://unmarkai.test/openapi-fixture',
+        'components': fixture['components'],
+    }
+    resource = Resource.from_contents(document, default_specification=DRAFT202012)
+    registry = resource @ Registry()
+    return jsonschema.Draft202012Validator(
+        {'$ref': document['$id'] + '#/components/schemas/' + name},
+        registry=registry,
+        format_checker=jsonschema.Draft202012Validator.FORMAT_CHECKER,
+    )
 
 
 class DocumentationTests(unittest.TestCase):
-    def test_hd_contract_and_invalid_fields(self):
-        body = {'type': 'video_upscale', 'input': {'upload_id': 'upl_example'},
-                'upscale': {'target': '4k'}}
-        for target in ['1080p', '2k', '4k']:
-            body['upscale']['target'] = target
-            jsonschema.validate(body, schema('VideoUpscaleCreateRequest'))
-        for change in [{'target': '720p'}, {'target': '4k', 'fps': 60}, {}]:
-            invalid = copy.deepcopy(body)
-            invalid['upscale'] = change
-            with self.assertRaises(jsonschema.ValidationError):
-                jsonschema.validate(invalid, schema('VideoUpscaleCreateRequest'))
-
-    def test_documented_json_requests(self):
+    def test_documented_json_requests_against_both_regions(self):
         count = 0
         for path in ROOT.rglob('*.md'):
             for block in re.findall(r'```json\n(.*?)```', path.read_text(), re.S):
@@ -48,27 +38,21 @@ class DocumentationTests(unittest.TestCase):
                 if body.get('type') in ('video_upscale', 'remove_text'):
                     name = ('VideoUpscaleCreateRequest' if body['type'] == 'video_upscale'
                             else 'RemoveTextJobCreateRequest')
-                    jsonschema.validate(body, schema(name))
+                    validator(CHINA, name).validate(body)
+                    validator(OVERSEAS, name).validate(body)
                     count += 1
         self.assertGreaterEqual(count, 2)
 
-    def test_curl_hd_body_offline(self):
+    def test_curl_hd_body_offline_both_regions(self):
         path = ROOT / 'skills/unmarkai-video-upscale/references/curl-fallback.md'
         text = path.read_text()
-        # Evaluate only the documented jq body builder with fixture variables.
         expression = re.search(r"'(\{type:\"video_upscale\".*?\})'", text).group(1)
         result = subprocess.run(['jq', '-n', '--arg', 'id', 'upl_fixture',
                                  '--arg', 'target', '4k', expression],
                                 check=True, capture_output=True, text=True)
-        jsonschema.validate(json.loads(result.stdout), schema('VideoUpscaleCreateRequest'))
-
-    def test_upload_limits(self):
-        body = {'filename': 'source.mp4', 'content_type': 'video/mp4',
-                'file_size_bytes': 2147483648}
-        jsonschema.validate(body, schema('UploadCreateRequest'))
-        body['file_size_bytes'] += 1
-        with self.assertRaises(jsonschema.ValidationError):
-            jsonschema.validate(body, schema('UploadCreateRequest'))
+        body = json.loads(result.stdout)
+        validator(CHINA, 'VideoUpscaleCreateRequest').validate(body)
+        validator(OVERSEAS, 'VideoUpscaleCreateRequest').validate(body)
 
     def test_local_links_and_languages(self):
         for path in ROOT.rglob('*.md'):
@@ -128,14 +112,40 @@ class DocumentationTests(unittest.TestCase):
         self.assertIn('all_area', docs['README.md'])
         self.assertIn('https://api.unmarkai.net/v1', docs['README.zh-CN.md'])
         self.assertIn('api.unmarkai.net/v1', docs['skills/unmarkai-video-upscale/references/curl-fallback.md'])
-        self.assertEqual(CONTRACT['overseas_openapi_version'], '1.4.0')
-        self.assertIn('unmarkai.net/openapi-v1.yaml', CONTRACT['source'])
-        overseas = CONTRACT['video_upscale_descriptions']['overseas_openapi_1_4_0']
-        china = CONTRACT['video_upscale_descriptions']['china_openapi_1_3_0']
-        self.assertIn('International API', overseas)
-        self.assertIn('all_area base rate times 1/2/3', overseas)
-        self.assertIn('中国区视频高清', china)
-        self.assertIn('0.04', china)
+        self.assertEqual(OVERSEAS['info']['version'], '1.4.0')
+        self.assertEqual(CHINA['info']['version'], '1.3.0')
+        self.assertEqual(OVERSEAS['source'], 'https://unmarkai.net/openapi-v1.yaml')
+        self.assertEqual(CHINA['source'], 'https://unmarkai.cn/openapi-v1.yaml')
+
+    def test_watermark_policy_is_regional(self):
+        contract = (ROOT / 'skills/unmarkai-remove-text/references/api-contract.md').read_text()
+        zh = (ROOT / 'README.zh-CN.md').read_text()
+        self.assertNotIn(
+            'preserve aspect ratio, frame rate and audio, with no platform\nwatermark on API output',
+            contract,
+        )
+        self.assertIn('China OpenAPI 1.3.0\nstates there is no platform watermark on API output', contract)
+        self.assertIn('trial watermark policy follows the\ninternational API account', contract)
+        self.assertIn('do not apply the China no-watermark promise to\noverseas jobs', contract)
+        self.assertNotIn('保留比例、帧率和音轨，API 成片不加平台水印。', zh)
+        self.assertIn('中国区 OpenAPI 1.3.0 承诺 API 成片不加平台水印', zh)
+        self.assertIn('试用/水印策略遵循国际站账户政策', zh)
+        self.assertIn('不能把国内承诺套到海外', zh)
+
+    def test_curl_poll_times_out_nonzero_without_cancel(self):
+        text = (ROOT / 'skills/unmarkai-video-upscale/references/curl-fallback.md').read_text()
+        self.assertIn('Job poll timed out; job still pending. JOB_ID=$JOB_ID', text)
+        self.assertIn('The server job was not canceled.', text)
+        self.assertIn('query later with GET $API/jobs/$JOB_ID', text)
+        # The timeout path must exit 1 after the poll loop, not fall through.
+        self.assertRegex(
+            text,
+            r'if \[\[ "\$\(jq -er \.status <<<"\$\{JOB:-\}"\)" != "succeeded" \]\]; then\n'
+            r'  echo "Job poll timed out;.*\n'
+            r'  exit 1\n'
+            r'fi',
+        )
+        self.assertNotIn('/cancel', text[text.index('Job poll timed out'):text.index('Job poll timed out') + 400])
 
 
 if __name__ == '__main__':

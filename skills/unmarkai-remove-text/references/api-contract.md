@@ -113,13 +113,20 @@ object. No client `fps`, multiplier, model, strength or scale parameter exists.
 
 Input long/short edges must not exceed the selected target: 1920×1080,
 2560×1440, 3840×2160 respectively. Portrait and same-resolution enhancement
-are supported; preserve aspect ratio, frame rate and audio, with no platform
-watermark on API output. Stereo conversion is recommended for multichannel audio.
-Output is the enhanced video through `result.url`; no separate SRT is promised.
-Response `upscale` contains `target`, server-probed `fps` and `multiplier` (1 or 2).
-Shared upload limits still apply: up to 2147483648 bytes (2 GiB) and 60 minutes.
-The International API returns 202 before media validation; invalid media becomes
-a failed job.
+are supported; preserve aspect ratio, frame rate and audio. Stereo conversion
+is recommended for multichannel audio. Output is the enhanced video through
+`result.url`; no separate SRT is promised. Response `upscale` contains
+`target`, server-probed `fps` and `multiplier` (1 or 2). Shared upload limits
+still apply: up to 2147483648 bytes (2 GiB) and 60 minutes. The International
+API returns 202 before media validation; invalid media becomes a failed job.
+
+Watermark policy is regional and must not be generalized. China OpenAPI 1.3.0
+states there is no platform watermark on API output. Overseas OpenAPI 1.4.0
+does not repeat that guarantee; it says trial watermark policy follows the
+international API account. The public overseas contract does not define further
+API trial details. Do not treat the website upscaler's 4-second watermarked
+trial as an API rule, and do not apply the China no-watermark promise to
+overseas jobs.
 
 ### China billing
 
@@ -144,10 +151,6 @@ account-discounted ≤30 FPS rates. `upscale_rates` is not a required
 `PublicBalance` field. Inspect the actual response keys; do not invent them.
 Display currency, calculation and uncertainty before spending. Final costs use
 server measurements and the job `currency` / `amounts`.
-
-Trial watermark policy “follows the international API account”; the public
-contract does not define further API trial details. Do not treat the website
-upscaler’s 4-second watermarked trial as an API rule.
 
 There is **no REST estimate endpoint** in these OpenAPI documents. Locally
 estimate from duration, FPS and the regional balance rates, then obtain spend

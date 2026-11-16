@@ -101,7 +101,10 @@ for ((i=0; i<360; i++)); do
   esac
   sleep 5
 done
-# If still pending, keep JOB_ID and query later; do not recreate the job.
+if [[ "$(jq -er .status <<<"${JOB:-}")" != "succeeded" ]]; then
+  echo "Job poll timed out; job still pending. JOB_ID=$JOB_ID status=$(jq -er .status <<<"${JOB:-null}"). Keep this ID and query later with GET $API/jobs/$JOB_ID. The server job was not canceled."
+  exit 1
+fi
 ```
 
 Response `upscale.fps` and `upscale.multiplier` are server-derived, not request
