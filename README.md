@@ -41,7 +41,7 @@ Two ways to connect for cleanup:
    overseas [UnmarkAI](https://unmarkai.net) API Console (Dashboard → API).
    Regional keys and wallets are independent.
 2. Create an API key with scopes `jobs:read`, `jobs:write`, `balance:read`.
-3. Top up the API wallet (pay-as-you-go).
+3. Check your regional API wallet balance. Eligible new overseas accounts receive **$1 in API trial credit** for text removal. If the available balance covers the job, no top-up is required. Trial videos include an UnMarkAI watermark. Top up only if you need more balance or want watermark-free results. Website points and subscriptions are separate from the API wallet.
 4. Export it:
 
 ```bash
