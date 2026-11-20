@@ -15,7 +15,7 @@
 
 1. 打开[中国区 API 控制台](https://unmarkai.cn/developers/)。海外用户从 [UnmarkAI](https://unmarkai.net) 的 Dashboard → API 进入。
 2. 创建 API 密钥，赋予 `jobs:read`、`jobs:write`、`balance:read` 权限。
-3. 在所选地区为 API 钱包充值。两区密钥和钱包独立，网页会员及积分不等于 API 余额。
+3. 先查看所选地区的 API 钱包余额。符合条件的海外新用户可获 **$1 API 试用额度**，用于去文字任务。余额够用就可以直接提交，无需先充值；试用成片带 UnMarkAI 水印。余额不足或需要无水印结果时再充值。中国区与海外区的密钥和钱包独立，网页会员及积分不计入 API 余额。
 4. 在运行客户端的环境中设置密钥：
 
 ```bash
